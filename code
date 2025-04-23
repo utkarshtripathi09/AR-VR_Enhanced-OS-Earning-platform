@@ -1,0 +1,429 @@
+import streamlit as st
+import matplotlib.pyplot as plt
+import numpy as np
+import plotly.figure_factory as ff
+import os
+import vispy.scene
+import vispy.io
+import vispy.app
+from vispy.scene import SceneCanvas, visuals
+import tempfile
+import webbrowser
+import pandas as pd
+import plotly.graph_objects as go
+
+# Streamlit Page Configuration
+st.set_page_config(page_title="AR/VR-Enhanced OS Learning", layout="wide")
+
+# Sidebar Navigation
+st.title("🔹 AR/VR-Enhanced OS Learning Platform")
+st.sidebar.header("Navigation")
+option = st.sidebar.radio("Select a topic:", ["Home", "Process Scheduling", "Memory Management",  "AR/VR Visualization"])
+
+# Home Page
+if option == "Home":
+    st.markdown("""
+        <style>
+            .centered {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+            }
+            .title-style {
+                font-size: 2.5rem;
+                font-weight: 700;
+                margin-top: 30px;
+                color: #1f77b4;
+            }
+            .subtitle-style {
+                font-size: 1.2rem;
+                color: #555;
+                margin-bottom: 20px;
+            }
+        </style>
+        <div class="centered">
+            <div class="title-style">👨‍💻 Welcome to the AR/VR OS Learning Platform! 👩‍💻</div>
+            <div class="subtitle-style">Explore Operating System concepts with visual and interactive simulations.</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.image("https://unsplash.com/photos/a-group-of-people-sitting-in-a-dark-room-Sff19X4pPJs", use_column_width=True)
+
+    st.markdown("### 📚 Features You Can Explore:")
+    st.markdown("- 🔄 **Process Scheduling**: Visualize FCFS, SJF, and Round Robin with Gantt charts")
+    st.markdown("- 💾 **Memory Management**: Simulate First-Fit, Best-Fit, Worst-Fit allocation")
+    st.markdown("- 🧠 **AR/VR Visualization**: Dive into immersive 3D simulations of OS internals")
+
+    st.markdown("---")
+    st.markdown("💡 *Use the navigation sidebar to select a topic and begin your learning journey!*")
+
+
+# Process Scheduling (Gantt Chart)
+
+elif option == "Process Scheduling":
+    st.subheader("🔄 Process Scheduling Simulation")
+
+    num_processes = st.number_input("Enter number of processes:", min_value=1, max_value=5, step=1)
+    processes = [f"P{i+1}" for i in range(num_processes)]
+    burst_times = [st.number_input(f"Enter Burst Time for {p}:", min_value=1, max_value=20) for p in processes]
+    arrival_times = [st.number_input(f"Enter Arrival Time for {p}:", min_value=0, max_value=20) for p in processes]
+
+    # Select scheduling algorithm
+    scheduling_algo = st.selectbox("Choose Scheduling Algorithm:", ["FCFS", "SJF", "Round Robin"])
+
+    # FCFS Scheduling with Arrival Time
+    def fcfs_scheduling(processes, burst_time, arrival_time):
+        start_time = [0] * len(processes)
+        completion_time = [0] * len(processes)
+        turnaround_time = [0] * len(processes)
+        waiting_time = [0] * len(processes)
+        
+        # Calculate start time and completion time
+        for i in range(1, len(processes)):
+            start_time[i] = max(start_time[i - 1] + burst_time[i - 1], arrival_time[i])
+        
+        for i in range(len(processes)):
+            completion_time[i] = start_time[i] + burst_time[i]
+            turnaround_time[i] = completion_time[i] - arrival_time[i]
+            waiting_time[i] = turnaround_time[i] - burst_time[i]
+
+        # Create a DataFrame to display the table
+        data = {
+            "Process": processes,
+            "Arrival Time (AT)": arrival_time,
+            "Burst Time (BT)": burst_time,
+            "Completion Time (CT)": completion_time,
+            "Turnaround Time (TAT)": turnaround_time,
+            "Waiting Time (WT)": waiting_time
+        }
+        
+        df = pd.DataFrame(data)
+        st.subheader("📊 Process Scheduling Table")
+        st.dataframe(df)
+
+        # Create a Gantt chart with Plotly
+        fig = go.Figure()
+        for i in range(len(processes)):
+            fig.add_trace(go.Bar(
+                y=[processes[i]],
+                x=[burst_time[i]],
+                orientation='h',
+                base=start_time[i],
+                hoverinfo='x+y+name',
+                name=processes[i],
+                marker=dict(color='skyblue')
+            ))
+
+        fig.update_layout(
+            title="FCFS Scheduling Gantt Chart",
+            xaxis_title="Time",
+            yaxis_title="Process",
+            barmode='stack',
+            showlegend=False
+        )
+        st.plotly_chart(fig)
+
+    # SJF Scheduling with Arrival Time
+    def sjf_scheduling(processes, burst_time, arrival_time):
+        # Sort by Arrival Time first and then by Burst Time
+        sorted_processes = sorted(zip(processes, burst_time, arrival_time), key=lambda x: (x[2], x[1]))
+        sorted_names, sorted_times, sorted_arrivals = zip(*sorted_processes)
+        start_time = [0] * len(sorted_processes)
+        completion_time = [0] * len(sorted_processes)
+        turnaround_time = [0] * len(sorted_processes)
+        waiting_time = [0] * len(sorted_processes)
+
+        for i in range(1, len(sorted_processes)):
+            start_time[i] = max(start_time[i - 1] + sorted_times[i - 1], sorted_arrivals[i])
+
+        for i in range(len(sorted_processes)):
+            completion_time[i] = start_time[i] + sorted_times[i]
+            turnaround_time[i] = completion_time[i] - sorted_arrivals[i]
+            waiting_time[i] = turnaround_time[i] - sorted_times[i]
+
+        # Create a DataFrame to display the table
+        data = {
+            "Process": sorted_names,
+            "Arrival Time (AT)": sorted_arrivals,
+            "Burst Time (BT)": sorted_times,
+            "Completion Time (CT)": completion_time,
+            "Turnaround Time (TAT)": turnaround_time,
+            "Waiting Time (WT)": waiting_time
+        }
+
+        df = pd.DataFrame(data)
+        st.subheader("📊 Process Scheduling Table")
+        st.dataframe(df)
+
+        # Create a Gantt chart with Plotly
+        fig = go.Figure()
+        for i in range(len(sorted_processes)):
+            fig.add_trace(go.Bar(
+                y=[sorted_names[i]],
+                x=[sorted_times[i]],
+                orientation='h',
+                base=start_time[i],
+                hoverinfo='x+y+name',
+                name=sorted_names[i],
+                marker=dict(color='lightcoral')
+            ))
+
+        fig.update_layout(
+            title="SJF Scheduling Gantt Chart",
+            xaxis_title="Time",
+            yaxis_title="Process",
+            barmode='stack',
+            showlegend=False
+        )
+        st.plotly_chart(fig)
+
+    # Round Robin Scheduling with Arrival Time
+    def round_robin_scheduling(processes, burst_time, arrival_time, quantum=4):
+        remaining_time = burst_time[:]
+        time = 0
+        gantt_chart = []
+        completion_time = [0] * len(processes)
+        turnaround_time = [0] * len(processes)
+        waiting_time = [0] * len(processes)
+
+        while any(rt > 0 for rt in remaining_time):
+            for i, (p, bt, at) in enumerate(zip(processes, burst_time, arrival_time)):
+                if remaining_time[i] > 0 and time >= at:
+                    execution_time = min(quantum, remaining_time[i])
+                    gantt_chart.append((p, time, time + execution_time))
+                    time += execution_time
+                    remaining_time[i] -= execution_time
+
+        # Calculate Completion Time, Turnaround Time, and Waiting Time
+        for i in range(len(processes)):
+            completion_time[i] = gantt_chart[-1][2]  # Last time in Gantt chart
+            turnaround_time[i] = completion_time[i] - arrival_time[i]
+            waiting_time[i] = turnaround_time[i] - burst_time[i]
+
+        # Create a DataFrame to display the table
+        data = {
+            "Process": processes,
+            "Arrival Time (AT)": arrival_time,
+            "Burst Time (BT)": burst_time,
+            "Completion Time (CT)": completion_time,
+            "Turnaround Time (TAT)": turnaround_time,
+            "Waiting Time (WT)": waiting_time
+        }
+
+        df = pd.DataFrame(data)
+        st.subheader("📊 Process Scheduling Table")
+        st.dataframe(df)
+
+        # Create a Gantt chart with Plotly
+        fig = go.Figure()
+        for p, start, end in gantt_chart:
+            fig.add_trace(go.Bar(
+                y=[p],
+                x=[end - start],
+                orientation='h',
+                base=start,
+                hoverinfo='x+y+name',
+                name=p,
+                marker=dict(color='purple')
+            ))
+
+        fig.update_layout(
+            title="Round Robin Scheduling Gantt Chart",
+            xaxis_title="Time",
+            yaxis_title="Process",
+            barmode='stack',
+            showlegend=False
+        )
+        st.plotly_chart(fig)
+
+    # Simulate Button
+    if st.button("Simulate"):
+        if scheduling_algo == "FCFS":
+            fcfs_scheduling(processes, burst_times, arrival_times)
+        elif scheduling_algo == "SJF":
+            sjf_scheduling(processes, burst_times, arrival_times)
+        elif scheduling_algo == "Round Robin":
+            round_robin_scheduling(processes, burst_times, arrival_times, quantum=4)
+# Memory Management (3D Blocks)
+
+elif option == "Memory Management":
+    st.subheader("💾 Memory Allocation Strategies Visualization")
+
+    # Input for Memory Blocks and Processes
+    col1, col2 = st.columns(2)
+    with col1:
+        block_input = st.text_input("Enter Memory Blocks (comma-separated)", "100, 500, 200, 300, 600")
+        blocks = [int(x.strip()) for x in block_input.split(",") if x.strip().isdigit()]
+
+    with col2:
+        process_input = st.text_input("Enter Process Sizes (comma-separated)", "212, 417, 112, 426")
+        processes = [int(x.strip()) for x in process_input.split(",") if x.strip().isdigit()]
+
+    strategy = st.radio("Select Allocation Strategy", ["First-Fit", "Best-Fit", "Worst-Fit"])
+
+    # Allocation Algorithms
+    def first_fit(blocks, processes):
+        allocation = [-1] * len(processes)
+        for i in range(len(processes)):
+            for j in range(len(blocks)):
+                if blocks[j] >= processes[i]:
+                    allocation[i] = j
+                    blocks[j] -= processes[i]
+                    break
+        return allocation
+
+    def best_fit(blocks, processes):
+        allocation = [-1] * len(processes)
+        for i in range(len(processes)):
+            best_idx = -1
+            for j in range(len(blocks)):
+                if blocks[j] >= processes[i]:
+                    if best_idx == -1 or blocks[j] < blocks[best_idx]:
+                        best_idx = j
+            if best_idx != -1:
+                allocation[i] = best_idx
+                blocks[best_idx] -= processes[i]
+        return allocation
+
+    def worst_fit(blocks, processes):
+        allocation = [-1] * len(processes)
+        for i in range(len(processes)):
+            worst_idx = -1
+            for j in range(len(blocks)):
+                if blocks[j] >= processes[i]:
+                    if worst_idx == -1 or blocks[j] > blocks[worst_idx]:
+                        worst_idx = j
+            if worst_idx != -1:
+                allocation[i] = worst_idx
+                blocks[worst_idx] -= processes[i]
+        return allocation
+
+    # Simulate Allocation
+    if st.button("Simulate Allocation"):
+        original_blocks = blocks.copy()
+        if strategy == "First-Fit":
+            allocation = first_fit(blocks, processes)
+        elif strategy == "Best-Fit":
+            allocation = best_fit(blocks, processes)
+        elif strategy == "Worst-Fit":
+            allocation = worst_fit(blocks, processes)
+
+        # Result Table
+        result = []
+        for i in range(len(processes)):
+            result.append({
+                "Process No": i + 1,
+                "Process Size": processes[i],
+                "Block Allocated": f"Block {allocation[i] + 1}" if allocation[i] != -1 else "Not Allocated"
+            })
+
+        st.subheader("📝 Allocation Result")
+        st.dataframe(pd.DataFrame(result))
+
+        # Visualization
+        st.subheader("📊 Memory Allocation Chart")
+        fig, ax = plt.subplots(figsize=(10, 4))
+        y = 1
+        offset = [0] * len(original_blocks)
+        for i in range(len(processes)):
+            block_idx = allocation[i]
+            if block_idx != -1:
+                start = sum(original_blocks[:block_idx]) - blocks[block_idx] - processes[i]
+                ax.broken_barh([(start, processes[i])], (y, 0.8), facecolors='tab:blue')
+                ax.text(start + processes[i] / 2, y + 0.4, f"P{i+1}", ha='center', va='center', color='white')
+
+        ax.set_ylim(0, 3)
+        ax.set_xlim(0, sum(original_blocks))
+        ax.set_xlabel("Memory Size")
+        ax.set_yticks([])
+        ax.set_title("Memory Blocks and Process Allocation")
+        st.pyplot(fig)
+
+    
+# AR/VR 3D Visualization for OS Concepts
+elif option == "AR/VR Visualization":
+    st.subheader("🕶 AR/VR 3D Process and Memory Management Visualization")
+
+    # 3D Process Management Visualization (using VisPy)
+    canvas = SceneCanvas(keys='interactive', bgcolor='black', size=(800, 600))
+    view = canvas.central_widget.add_view()
+    
+    # Create a 3D Grid for Process Management
+    grid = visuals.GridLines()
+    view.add(grid)
+
+    # Add 3D Process Blocks
+    for i in range(5):
+        # Each block represents a process
+        box = visuals.Box(width=1, height=1, depth=1, color=(0.5, 0.5, 1, 0.8))
+        box.transform = vispy.visuals.transforms.STTransform(translate=(i * 2, 0, 0))
+        view.add(box)
+
+    # Adjust view settings for better camera controls
+    view.camera = 'turntable'
+    image = canvas.render()
+    st.image(image, caption="3D Process Management Visualization")
+
+    # Web-Based VR (Three.js for interactive VR experience)
+    def open_vr_scene():
+        html_code = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>VR OS Simulation</title>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        </head>
+        <body style="margin: 0; overflow: hidden;">
+            <script>
+                var scene = new THREE.Scene();
+                var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                var renderer = new THREE.WebGLRenderer();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+                
+                // Create a Process Cube (representing a process)
+                var geometry = new THREE.BoxGeometry();
+                var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                var cube = new THREE.Mesh(geometry, material);
+                scene.add(cube);
+                
+                // Set camera position
+                camera.position.z = 5;
+                
+                // Animation Loop
+                function animate() {
+                    requestAnimationFrame(animate);
+                    cube.rotation.x += 0.01;
+                    cube.rotation.y += 0.01;
+                    renderer.render(scene, camera);
+                }
+                animate();
+            </script>
+        </body>
+        </html>
+        """
+
+        # Write HTML to a temporary file
+        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.html') as f:
+            f.write(html_code)
+            # Open it in the default web browser
+            webbrowser.open(f.name)
+
+    # Button to launch the VR Simulation
+    if st.button("Launch VR OS Simulation"):
+        open_vr_scene()
+
+    # Interactive Memory Blocks 3D (using WebGL or Three.js for AR/VR)
+    st.subheader("🌐 Interactive Memory Allocation in VR")
+    st.write("In this section, explore how memory is allocated using different algorithms (First-Fit, Best-Fit, Worst-Fit).")
+
+    # You can add similar 3D memory block visuals as part of the AR/VR experience
+    # This can include rotating memory blocks, drag-and-drop operations in VR/AR, and more.
+    
+    # For demonstration purposes, we can just describe this concept for now.
+    st.write("Imagine a 3D grid where each memory block and process interacts dynamically in the AR/VR space.")
+    
+    # Add functionality to interact with these memory blocks in the future
+    # For example, by dragging processes to fit into available memory blocks or showing visual changes
